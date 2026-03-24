@@ -1,0 +1,99 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: light;
+
+  --font-sans: 'Plus Jakarta Sans', 'Space Grotesk', 'Segoe UI', sans-serif;
+
+  --color-background: #f3f7ff;
+  --color-foreground: #0b1220;
+  --color-card: #f9fbff;
+  --color-popover: #f9fbff;
+
+  --color-primary: #22d3ee;
+  --color-primary-foreground: #06121d;
+  --color-secondary: #dbe8ff;
+  --color-secondary-foreground: #0b1a2d;
+
+  --color-muted: #eaf0ff;
+  --color-muted-foreground: #5d6b86;
+  --color-accent: #38bdf8;
+
+  --color-destructive: #ef4444;
+  --color-border: #cedaf0;
+  --color-ring: #38bdf8;
+
+  --color-sidebar: #eef4ff;
+  --color-sidebar-foreground: #102138;
+  --color-sidebar-accent: #d8e8ff;
+  --color-sidebar-accent-foreground: #08162c;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --color-background: #030712;
+  --color-foreground: #e7f2ff;
+  --color-card: #071225;
+  --color-popover: #081426;
+
+  --color-primary: #22d3ee;
+  --color-primary-foreground: #03131c;
+  --color-secondary: #10213a;
+  --color-secondary-foreground: #d6e7ff;
+
+  --color-muted: #0f1d33;
+  --color-muted-foreground: #93a8c6;
+  --color-accent: #38bdf8;
+
+  --color-destructive: #f87171;
+  --color-border: #1a2a42;
+  --color-ring: #38bdf8;
+
+  --color-sidebar: #020817;
+  --color-sidebar-foreground: #d7e9ff;
+  --color-sidebar-accent: #0d213f;
+  --color-sidebar-accent-foreground: #e6f3ff;
+}
+
+@theme inline {
+  --color-background: var(--color-background);
+  --color-foreground: var(--color-foreground);
+  --color-card: var(--color-card);
+  --color-popover: var(--color-popover);
+
+  --color-primary: var(--color-primary);
+  --color-primary-foreground: var(--color-primary-foreground);
+  --color-secondary: var(--color-secondary);
+  --color-secondary-foreground: var(--color-secondary-foreground);
+
+  --color-muted: var(--color-muted);
+  --color-muted-foreground: var(--color-muted-foreground);
+  --color-accent: var(--color-accent);
+
+  --color-destructive: var(--color-destructive);
+  --color-border: var(--color-border);
+  --color-ring: var(--color-ring);
+
+  --color-sidebar: var(--color-sidebar);
+  --color-sidebar-foreground: var(--color-sidebar-foreground);
+  --color-sidebar-accent: var(--color-sidebar-accent);
+  --color-sidebar-accent-foreground: var(--color-sidebar-accent-foreground);
+
+  --font-sans: var(--font-sans);
+}
+
+* {
+  @apply border-border;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  font-family: var(--font-sans);
+}
