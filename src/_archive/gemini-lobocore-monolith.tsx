@@ -36,6 +36,52 @@ import { pathViewMap, viewPathMap } from '../features/navigation/view-routing';
 const delay = (ms) => new Promise(res => setTimeout(res, ms));
 const api = runtimeApi;
 const THEME_STORAGE_KEY = 'lobocore_theme';
+const SKU_PREFIX = 'PRD-';
+const SKU_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const SKU_LENGTH = 6;
+
+const generateSkuPreview = () => {
+  let block = '';
+
+  for (let index = 0; index < SKU_LENGTH; index += 1) {
+    const randomIndex = Math.floor(Math.random() * SKU_CHARS.length);
+    block += SKU_CHARS[randomIndex];
+  }
+
+  return `${SKU_PREFIX}${block}`;
+};
+
+const onlyDigits = (value = '') => value.replace(/\D/g, '');
+
+const formatBrazilPhone = (value = '') => {
+  const digits = onlyDigits(value).slice(0, 11);
+
+  if (!digits) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+};
+
+const formatCpfCnpj = (value = '') => {
+  const digits = onlyDigits(value).slice(0, 14);
+
+  if (!digits) return '';
+
+  if (digits.length <= 11) {
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+  }
+
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+  if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+};
 
 const ThemeContext = createContext();
 const useTheme = () => useContext(ThemeContext);
@@ -127,7 +173,12 @@ const Select = ({ icon: Icon, children, className = '', ...props }) => {
 
 const Input = ({ label, icon: Icon, rightElement, error, className = '', ...props }) => (
   <div className={`flex flex-col gap-1.5 ${className}`}>
-    {label && <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>}
+    {label && (
+      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+        {label}
+        {props.required ? <span className="text-rose-500 ml-1">*</span> : null}
+      </label>
+    )}
     <div className="relative group">
       {Icon && <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-cyan-500 transition-colors"><Icon size={18} /></div>}
       <input 
@@ -615,7 +666,7 @@ const UsersView = () => {
           )}
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nível de Acesso</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nível de Acesso<span className="text-rose-500 ml-1">*</span></label>
               <Select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} required>
                 <option value="client">Client</option>
                 <option value="admin">Admin</option>
@@ -623,7 +674,7 @@ const UsersView = () => {
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Status Inicial</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Status Inicial<span className="text-rose-500 ml-1">*</span></label>
               <Select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} required>
                 <option value="active">Ativo</option>
                 <option value="inactive">Inativo</option>
@@ -675,11 +726,24 @@ const ClientsView = () => {
   const handleOpenModal = (client = null) => {
     setEditingClient(client);
     if (client) {
-      setFormData({ name: client.name, email: client.email, phone: client.phone, document: client.document });
+      setFormData({
+        name: client.name,
+        email: client.email,
+        phone: formatBrazilPhone(client.phone || ''),
+        document: formatCpfCnpj(client.document || ''),
+      });
     } else {
       setFormData({ name: '', email: '', phone: '', document: '' });
     }
     setModalOpen(true);
+  };
+
+  const handlePhoneChange = (value) => {
+    setFormData((prev) => ({ ...prev, phone: formatBrazilPhone(value) }));
+  };
+
+  const handleDocumentChange = (value) => {
+    setFormData((prev) => ({ ...prev, document: formatCpfCnpj(value) }));
   };
 
   const handleSubmit = async (e) => {
@@ -780,9 +844,9 @@ const ClientsView = () => {
                     <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{client.name}</td>
                     <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
                       <div className="flex items-center gap-2"><Mail size={14}/> {client.email}</div>
-                      <div className="flex items-center gap-2 mt-1 text-xs"><Phone size={14}/> {client.phone}</div>
+                      <div className="flex items-center gap-2 mt-1 text-xs"><Phone size={14}/> {formatBrazilPhone(client.phone || '')}</div>
                     </td>
-                    <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{client.document}</td>
+                    <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{formatCpfCnpj(client.document || '')}</td>
                     <td className="px-6 py-4">
                       <button onClick={() => handleToggleStatus(client.id, client.active)} className="focus:outline-none hover:scale-105 transition-transform">
                         <Badge variant={client.active ? 'success' : 'danger'}>{client.active ? 'Ativo' : 'Inativo'}</Badge>
@@ -807,9 +871,9 @@ const ClientsView = () => {
           <Input label="Razão Social / Nome" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
           <div className="grid grid-cols-2 gap-4">
             <Input label="E-mail" type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
-            <Input label="Telefone" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} required />
+            <Input label="Telefone" value={formData.phone} onChange={e => handlePhoneChange(e.target.value)} inputMode="numeric" placeholder={onlyDigits(formData.phone).length > 10 ? '(00) 00000-0000' : '(00) 0000-0000'} required />
           </div>
-          <Input label="Documento (CNPJ/CPF)" value={formData.document} onChange={e => setFormData({...formData, document: e.target.value})} required />
+          <Input label="Documento (CPF/CNPJ)" value={formData.document} onChange={e => handleDocumentChange(e.target.value)} inputMode="numeric" placeholder={onlyDigits(formData.document).length > 11 ? '00.000.000/0000-00' : '000.000.000-00'} required />
           <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 dark:border-white/5 mt-6">
             <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Cancelar</Button>
             <Button type="submit" loading={saving}>{editingClient ? 'Salvar Alterações' : 'Criar Cliente'}</Button>
@@ -840,7 +904,7 @@ const ProductsView = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
 
-  const [formData, setFormData] = useState({ name: '', sku: '', price: '', stock: '', category: 'Software', description: '' });
+  const [formData, setFormData] = useState({ name: '', sku: '', price: '', stock: '', category: 'Informática', description: '' });
   const [saving, setSaving] = useState(false);
   const [generatingDesc, setGeneratingDesc] = useState(false);
 
@@ -862,8 +926,8 @@ const ProductsView = () => {
     if (product) {
       setFormData({ name: product.name, sku: product.sku, price: product.price.toString(), stock: product.stock.toString(), category: product.category, description: product.description });
     } else {
-      const generateSKU = `LBC-${Math.floor(Math.random()*1000).toString().padStart(3,'0')}`;
-      setFormData({ name: '', sku: generateSKU, price: '', stock: '', category: 'Software', description: '' });
+      const generateSKU = generateSkuPreview();
+      setFormData({ name: '', sku: generateSKU, price: '', stock: '', category: 'Informática', description: '' });
     }
     setModalOpen(true);
   };
@@ -951,10 +1015,13 @@ const ProductsView = () => {
           <div className="flex flex-wrap gap-3">
             <Select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="min-w-[150px]">
               <option value="all">Categorias</option>
-              <option value="Software">Software</option>
-              <option value="Hardware">Hardware</option>
-              <option value="Serviço">Serviço</option>
-              <option value="Plugin">Plugin</option>
+              <option value="Informática">Informática</option>
+              <option value="Periféricos">Periféricos</option>
+              <option value="Acessórios">Acessórios</option>
+              <option value="Escritório">Escritório</option>
+              <option value="Redes">Redes</option>
+              <option value="Energia">Energia</option>
+              <option value="Outros">Outros</option>
             </Select>
             {!isClient && (
               <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="min-w-[130px]">
@@ -1000,7 +1067,7 @@ const ProductsView = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-mono text-xs">{product.sku}</td>
-                    <td className="px-6 py-4"><Badge variant={product.category === 'Software' ? 'info' : product.category === 'Hardware' ? 'warning' : 'default'}>{product.category}</Badge></td>
+                    <td className="px-6 py-4"><Badge variant={product.category === 'Informática' ? 'info' : product.category === 'Periféricos' ? 'warning' : 'default'}>{product.category}</Badge></td>
                     <td className="px-6 py-4"><div className="font-medium text-cyan-600 dark:text-cyan-400">{formatMoney(product.price)}</div><div className={`text-xs mt-1 ${product.stock < 10 ? 'text-rose-500 font-bold' : 'text-slate-500 dark:text-slate-400'}`}>{product.stock} un disponíveis</div></td>
                     {!isClient && (
                       <td className="px-6 py-4">
@@ -1031,12 +1098,15 @@ const ProductsView = () => {
           <div className="grid grid-cols-2 gap-4">
             <Input label="SKU (Apenas Leitura)" value={formData.sku} readOnly className="bg-slate-50 dark:bg-[#141821] cursor-not-allowed text-slate-500" />
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Categoria</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Categoria<span className="text-rose-500 ml-1">*</span></label>
               <Select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} required>
-                <option value="Software">Software</option>
-                <option value="Hardware">Hardware</option>
-                <option value="Serviço">Serviço</option>
-                <option value="Plugin">Plugin</option>
+                <option value="Informática">Informática</option>
+                <option value="Periféricos">Periféricos</option>
+                <option value="Acessórios">Acessórios</option>
+                <option value="Escritório">Escritório</option>
+                <option value="Redes">Redes</option>
+                <option value="Energia">Energia</option>
+                <option value="Outros">Outros</option>
               </Select>
             </div>
           </div>
@@ -1046,7 +1116,7 @@ const ProductsView = () => {
           </div>
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Descrição</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Descrição<span className="text-rose-500 ml-1">*</span></label>
               <button type="button" onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1 transition-colors disabled:opacity-50">
                 {generatingDesc ? <Activity size={12} className="animate-spin" /> : <Sparkles size={12} />}
                 Auto-completar com IA ✨
