@@ -1,4 +1,4 @@
-# CRUD Alves - Frontend
+# LoboCore - Frontend
 
 Frontend preparado para sistema administrativo full stack com React, Vite e TypeScript.
 
@@ -77,6 +77,7 @@ npm run lint
 O Vite está configurado para fazer proxy das chamadas `/api` para `http://localhost:3000`.
 
 Isso significa que você pode fazer chamadas como:
+
 ```typescript
 axios.get('/api/health')
 ```
