@@ -93,21 +93,52 @@ const ToastContext = createContext();
 const useToast = () => useContext(ToastContext);
 
 const callGemini = async (prompt) => {
-  const apiKey = "";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const model = import.meta.env.VITE_GEMINI_MODEL || 'gemini-2.5-flash';
+  const apiBaseUrl = import.meta.env.VITE_GEMINI_API_BASE_URL || 'https://generativelanguage.googleapis.com';
+
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error('Gemini não configurado: defina VITE_GEMINI_API_KEY no .env');
+  }
+
+  const url = `${apiBaseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const payload = { contents: [{ parts: [{ text: prompt }] }] };
 
   const fetchWithRetry = async (retries = 5, delay = 1000) => {
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify(payload)
       });
-      if (!response.ok) throw new Error('API Error');
+
+      if (!response.ok) {
+        let apiMessage = '';
+        try {
+          const errorBody = await response.json();
+          apiMessage = errorBody?.error?.message || '';
+        } catch {
+          apiMessage = '';
+        }
+
+        if (response.status === 403) {
+          throw new Error(`Gemini recusou acesso (403). Verifique chave, permissões da API e restrições de origem. ${apiMessage}`.trim());
+        }
+
+        throw new Error(apiMessage ? `Erro Gemini (${response.status}): ${apiMessage}` : `Erro Gemini (${response.status})`);
+      }
+
       const data = await response.json();
       return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('Gemini não configurado') || message.includes('Gemini recusou acesso (403)')) {
+        throw error;
+      }
+
       if (retries > 0) {
         await new Promise(res => setTimeout(res, delay));
         return fetchWithRetry(retries - 1, delay * 2); 

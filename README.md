@@ -56,6 +56,18 @@ npm run dev
 
 O frontend estará disponível em: `http://localhost:5173`
 
+### 3. Configurar Gemini (IA)
+
+1. Crie um arquivo `.env` na raiz de `Crud-FrontEnd`.
+2. Copie o conteúdo de `.env.example`.
+3. Preencha `VITE_GEMINI_API_KEY` com sua chave válida.
+
+Variáveis suportadas:
+
+- `VITE_GEMINI_API_KEY`: chave da API Gemini
+- `VITE_GEMINI_MODEL`: modelo (padrão: `gemini-2.5-flash`)
+- `VITE_GEMINI_API_BASE_URL`: base da API (padrão: `https://generativelanguage.googleapis.com`)
+
 ## Scripts Disponíveis
 
 ```bash
