@@ -13,7 +13,7 @@ Frontend preparado para sistema administrativo full stack com React, Vite e Type
 ## Estrutura do Projeto
 
 ```
-Crud-FrontEnd/
+LoboCore-frontend/
 ├── src/
 │   ├── app/              # Configurações da aplicação
 │   ├── components/       # Componentes reutilizáveis
@@ -58,7 +58,7 @@ O frontend estará disponível em: `http://localhost:5173`
 
 ### 3. Configurar Gemini (IA)
 
-1. Crie um arquivo `.env` na raiz de `Crud-FrontEnd`.
+1. Crie um arquivo `.env` na raiz de `LoboCore-frontend`.
 2. Copie o conteúdo de `.env.example`.
 3. Preencha `VITE_GEMINI_API_KEY` com sua chave válida.
 
@@ -71,19 +71,27 @@ Variáveis suportadas:
 
 ## Deploy na Vercel
 
+0. Preflight obrigatório local (sempre antes de subir):
+
+```bash
+npm install
+npm run build
+```
+
 1. Faça push do frontend para o GitHub.
 2. Na Vercel, clique em `Add New > Project` e importe o repositório.
-3. Configure o `Root Directory` como `Crud-FrontEnd`.
-4. Build command: `npm run build`
-5. Output directory: `dist`
-6. Em `Environment Variables`, adicione:
+3. Se o repositório tiver apenas o frontend (`LoboCore-frontend`), deixe `Root Directory` vazio.
+4. Se estiver em monorepo, configure o diretório da pasta frontend.
+5. Build command: `npm run build`
+6. Output directory: `dist`
+7. Em `Environment Variables`, adicione:
 
-- `VITE_API_BASE_URL` (URL do backend publicado, terminando com `/api`)
+- `VITE_API_BASE_URL` = `https://lobocore-api.onrender.com/api`
 - `VITE_GEMINI_API_KEY`
 - `VITE_GEMINI_MODEL` (ex.: `gemini-2.5-flash`)
 - `VITE_GEMINI_API_BASE_URL` (opcional, padrão Google)
 
-7. Clique em `Deploy`.
+8. Clique em `Deploy`.
 
 Observações:
 
