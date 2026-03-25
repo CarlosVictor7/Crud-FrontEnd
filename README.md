@@ -64,9 +64,31 @@ O frontend estará disponível em: `http://localhost:5173`
 
 Variáveis suportadas:
 
+- `VITE_API_BASE_URL`: URL base do backend (ex.: `https://seu-backend.onrender.com/api`)
 - `VITE_GEMINI_API_KEY`: chave da API Gemini
 - `VITE_GEMINI_MODEL`: modelo (padrão: `gemini-2.5-flash`)
 - `VITE_GEMINI_API_BASE_URL`: base da API (padrão: `https://generativelanguage.googleapis.com`)
+
+## Deploy na Vercel
+
+1. Faça push do frontend para o GitHub.
+2. Na Vercel, clique em `Add New > Project` e importe o repositório.
+3. Configure o `Root Directory` como `Crud-FrontEnd`.
+4. Build command: `npm run build`
+5. Output directory: `dist`
+6. Em `Environment Variables`, adicione:
+
+- `VITE_API_BASE_URL` (URL do backend publicado, terminando com `/api`)
+- `VITE_GEMINI_API_KEY`
+- `VITE_GEMINI_MODEL` (ex.: `gemini-2.5-flash`)
+- `VITE_GEMINI_API_BASE_URL` (opcional, padrão Google)
+
+7. Clique em `Deploy`.
+
+Observações:
+
+- O projeto já inclui fallback de rota SPA em `vercel.json`.
+- Sem `VITE_API_BASE_URL` em produção, as chamadas de API não vão alcançar seu backend.
 
 ## Scripts Disponíveis
 

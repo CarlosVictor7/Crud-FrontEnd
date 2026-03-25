@@ -1,8 +1,13 @@
 import { clientsService } from './clients-service';
 import { productsService } from './products-service';
 import { authService } from './auth-service';
-import { usersMockService } from './users-mock-service';
+import { usersService } from './users-service';
 import { toCategory, toCategoryLabel } from '../lib/product-category';
+
+const normalizeUser = (item: any) => ({
+  id: item._id,
+  ...item,
+});
 
 const normalizeClient = (item: any) => ({
   id: item._id,
@@ -41,24 +46,68 @@ export const runtimeApi = {
   },
 
   users: {
-    get: async () => usersMockService.list(),
-
-    post: async (data: any) => {
-      return usersMockService.create({
-        name: data.name,
-        email: data.email,
-        role: data.role,
-        active: data.active ?? true,
-      });
+    get: async () => {
+      try {
+        const data = await usersService.list();
+        return data.map(normalizeUser);
+      } catch (error) {
+        throw new Error(errorMessageFrom(error, 'Erro ao listar usuarios'));
+      }
     },
 
-    put: async (id: string, data: any) => usersMockService.update(id, data),
+    post: async (data: any) => {
+      try {
+        const created = await usersService.create({
+          name: data.name,
+          email: data.email,
+          password: data.password,
+          role: data.role,
+          active: data.active ?? true,
+        });
+        return normalizeUser(created);
+      } catch (error) {
+        throw new Error(errorMessageFrom(error, 'Erro ao criar usuario'));
+      }
+    },
 
-    patchStatus: async (id: string, status: boolean) => usersMockService.patchStatus(id, status),
+    put: async (id: string, data: any) => {
+      try {
+        const updated = await usersService.update(id, {
+          name: data.name,
+          email: data.email,
+          role: data.role,
+        });
+        return normalizeUser(updated);
+      } catch (error) {
+        throw new Error(errorMessageFrom(error, 'Erro ao atualizar usuario'));
+      }
+    },
+
+    patchStatus: async (id: string, status: boolean) => {
+      try {
+        const updated = await usersService.patchStatus(id, status);
+        return normalizeUser(updated);
+      } catch (error) {
+        throw new Error(errorMessageFrom(error, 'Erro ao alterar status do usuario'));
+      }
+    },
+
+    patchPassword: async (id: string, password: string) => {
+      try {
+        await usersService.patchPassword(id, password);
+        return { success: true };
+      } catch (error) {
+        throw new Error(errorMessageFrom(error, 'Erro ao atualizar senha do usuario'));
+      }
+    },
 
     delete: async (id: string) => {
-      await usersMockService.remove(id);
-      return { success: true };
+      try {
+        await usersService.remove(id);
+        return { success: true };
+      } catch (error) {
+        throw new Error(errorMessageFrom(error, 'Erro ao excluir usuario'));
+      }
     },
   },
 

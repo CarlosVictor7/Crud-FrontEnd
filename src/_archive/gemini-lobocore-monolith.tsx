@@ -8,7 +8,7 @@ import {
   Eye, EyeOff, UserCog, Calendar, SortDesc, Save, Info,
   ChevronDown
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { runtimeApi } from '../services/runtime-api';
 import { profileService } from '../services/profile-service';
@@ -21,13 +21,15 @@ import {
   canDeleteUsers,
   getDefaultViewByRole,
 } from '../lib/rbac';
-import { filterAndSortUsers, formatUserDate, usersRoleNames } from '../features/users/users-utils';
+import { filterAndSortUsers, formatLastLoginDateTime, formatUserDate, usersRoleNames } from '../features/users/users-utils';
 import { deleteClientAction, loadClientsAction, submitClientAction, toggleClientStatusAction } from '../features/clients/clients-actions';
 import { filterAndSortClients } from '../features/clients/clients-utils';
 import { deleteProductAction, loadProductsAction, submitProductAction, toggleProductStatusAction } from '../features/products/products-actions';
 import { filterAndSortProducts } from '../features/products/products-utils';
-import { formatProfileDate, profileRoleNames } from '../features/profile/profile-utils';
+import { formatProfileDate, formatProfileLastLogin, profileRoleNames } from '../features/profile/profile-utils';
 import { pathViewMap, viewPathMap } from '../features/navigation/view-routing';
+import { dashboardService } from '../features/dashboard/dashboard-service';
+import { buildDashboardComputedData, formatDashboardDate, formatDashboardDateTime } from '../features/dashboard/dashboard-utils';
 
 // ==========================================
 // 1. MOCK API & INITIAL DATA
@@ -303,8 +305,8 @@ const LoginView = () => {
   const { login } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { showToast } = useToast();
-  const [email, setEmail] = useState('super@lobocore.com');
-  const [password, setPassword] = useState('123456');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -342,7 +344,7 @@ const LoginView = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <Input label="E-mail Corporativo" type="email" icon={Mail} value={email} onChange={e => setEmail(e.target.value)} required placeholder="admin@lobocore.com" />
+          <Input label="E-mail Corporativo" type="email" icon={Mail} value={email} onChange={e => setEmail(e.target.value)} required placeholder="Digite seu e-mail corporativo" />
           <Input 
             label="Senha" 
             type={showPassword ? "text" : "password"} 
@@ -350,7 +352,7 @@ const LoginView = () => {
             value={password} 
             onChange={e => setPassword(e.target.value)} 
             required 
-            placeholder="••••••••" 
+            placeholder="Digite sua senha de acesso" 
             rightElement={
               <button 
                 type="button" 
@@ -368,12 +370,8 @@ const LoginView = () => {
         </form>
 
         <div className="mt-8 text-center border-t border-slate-200 dark:border-white/5 pt-6">
-          <p className="text-xs text-slate-500 dark:text-slate-500">Credenciais de Teste:</p>
-          <div className="flex justify-center gap-3 mt-2 text-[10px] text-slate-400">
-            <span className="bg-slate-100 dark:bg-[#151923] px-2 py-1 rounded border dark:border-white/5">super@</span>
-            <span className="bg-slate-100 dark:bg-[#151923] px-2 py-1 rounded border dark:border-white/5">admin@</span>
-            <span className="bg-slate-100 dark:bg-[#151923] px-2 py-1 rounded border dark:border-white/5">client@</span>
-          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-500">Acesso restrito</p>
+          <p className="text-[11px] text-slate-400 mt-2">Use somente credenciais corporativas ativas liberadas pela administracão 🐺</p>
         </div>
       </Card>
     </div>
@@ -385,11 +383,46 @@ const DashboardView = () => {
   const { showToast } = useToast();
   const [aiInsights, setAiInsights] = useState('');
   const [generatingInsights, setGeneratingInsights] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState('');
+  const [dashboardData, setDashboardData] = useState(null);
+
+  const loadDashboard = async () => {
+    setDashboardLoading(true);
+    setDashboardError('');
+
+    try {
+      const rawData = await dashboardService.fetchRawData();
+      setDashboardData(buildDashboardComputedData(rawData));
+    } catch (error) {
+      setDashboardError(error?.message || 'Falha ao carregar métricas do dashboard.');
+      showToast(error?.message || 'Falha ao carregar métricas do dashboard.', 'error');
+    } finally {
+      setDashboardLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
 
   const generateInsights = async () => {
+    if (!dashboardData) {
+      showToast('Carregue os dados do dashboard antes de gerar insights.', 'warning');
+      return;
+    }
+
+    const roleSummary = dashboardData.roleDistribution
+      .map((item) => `${item.label}: ${item.value}`)
+      .join(', ');
+
+    const statusSummary = dashboardData.systemStatus
+      .map((item) => `${item.label} (ativos: ${item.active}, inativos: ${item.inactive})`)
+      .join('; ');
+
     setGeneratingInsights(true);
     try {
-      const prompt = `Atue como um analista de negócios executivo. Analise os seguintes dados do painel SaaS B2B LoboCore: Receita Mensal: R$ 124.500, Clientes Ativos: 1.284, Produtos Registrados: 342. Escreva um parágrafo curto (máximo de 4 linhas) com um insight encorajador, profissional e focado no crescimento para o usuário "${user.name}". Não use formatação markdown excessiva.`;
+      const prompt = `Atue como analista operacional do sistema administrativo LoboCore. Considere os seguintes dados reais: ${dashboardData.kpis[0].title}: ${dashboardData.kpis[0].value}; ${dashboardData.kpis[1].title}: ${dashboardData.kpis[1].value}; ${dashboardData.kpis[2].title}: ${dashboardData.kpis[2].value}; ${dashboardData.kpis[3].title}: ${dashboardData.kpis[3].value}. Distribuição por perfis: ${roleSummary}. Status do sistema: ${statusSummary}. Escreva um insight curto (máximo 4 linhas), profissional e acionável para ${user.name}, destacando prioridades operacionais imediatas.`;
       const insight = await callGemini(prompt);
       setAiInsights(insight);
       showToast('Insights gerados com sucesso!', 'success');
@@ -399,17 +432,25 @@ const DashboardView = () => {
       setGeneratingInsights(false);
     }
   };
-  
-  const stats = [
-    { title: 'Receita Mensal', value: 'R$ 124.500', icon: Activity, trend: '+14.5%', color: 'text-emerald-500' },
-    { title: 'Clientes Ativos', value: '1.284', icon: Users, trend: '+2.4%', color: 'text-cyan-500' },
-    { title: 'Produtos Registrados', value: '342', icon: Package, trend: '+12', color: 'text-blue-500' },
+
+  const stats = dashboardData?.kpis || [
+    { title: 'Usuários cadastrados', value: '0', colorClass: 'text-cyan-500' },
+    { title: 'Clientes ativos', value: '0', colorClass: 'text-emerald-500' },
+    { title: 'Produtos registrados', value: '0', colorClass: 'text-blue-500' },
+    { title: 'Produtos ativos', value: '0', colorClass: 'text-indigo-500' },
   ];
 
-  const chartData = [
-    { name: 'Jan', reqs: 4000 }, { name: 'Fev', reqs: 3000 }, { name: 'Mar', reqs: 5000 },
-    { name: 'Abr', reqs: 8780 }, { name: 'Mai', reqs: 5890 }, { name: 'Jun', reqs: 9390 },
-  ];
+  const roleData = dashboardData?.roleDistribution || [];
+  const systemStatus = dashboardData?.systemStatus || [];
+  const lastLogins = dashboardData?.lastLogins || [];
+  const recentUsers = dashboardData?.recentUsers || [];
+  const statsIcons = [UserCog, Users, Package, CheckCircle2];
+
+  const roleBadgeVariant = (role) => {
+    if (role === 'super_admin') return 'purple';
+    if (role === 'admin') return 'info';
+    return 'default';
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -438,16 +479,25 @@ const DashboardView = () => {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {dashboardError && (
+        <Card className="p-4 border-rose-200 dark:border-rose-500/20 bg-rose-50/60 dark:bg-rose-900/10">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-rose-700 dark:text-rose-300">{dashboardError}</p>
+            <Button variant="outline" onClick={loadDashboard}>Tentar novamente</Button>
+          </div>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {stats.map((stat, i) => (
           <Card key={i} className="p-6 flex items-start justify-between group hover:border-cyan-500/50 dark:hover:border-white/10 transition-colors">
             <div>
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{stat.title}</p>
               <h3 className="text-3xl font-bold text-slate-900 dark:text-white mt-2">{stat.value}</h3>
-              <p className={`text-xs font-medium mt-2 ${stat.color}`}>{stat.trend} este mês</p>
+              <p className={`text-xs font-medium mt-2 ${stat.colorClass}`}>{dashboardLoading ? 'Atualizando...' : 'Dados reais do sistema'}</p>
             </div>
             <div className={`p-3 rounded-lg bg-slate-50 dark:bg-[#0E121B] group-hover:scale-110 transition-transform`}>
-              <stat.icon size={24} className={stat.color} />
+              {React.createElement(statsIcons[i] || Activity, { size: 24, className: stat.colorClass })}
             </div>
           </Card>
         ))}
@@ -455,34 +505,119 @@ const DashboardView = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="col-span-1 lg:col-span-2 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Tráfego de API (Requisições)</h3>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Distribuição de usuários por perfil</h3>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorReqs" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.1} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
-                <RechartsTooltip contentStyle={{ backgroundColor: '#141821', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', color: '#fff' }} itemStyle={{color: '#06b6d4'}} />
-                <Area type="monotone" dataKey="reqs" stroke="#06b6d4" strokeWidth={3} fillOpacity={1} fill="url(#colorReqs)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {dashboardLoading ? (
+              <div className="h-full flex items-center justify-center text-slate-500 dark:text-slate-400">
+                <Activity className="animate-spin mr-2" size={18} /> Carregando distribuição...
+              </div>
+            ) : roleData.every((item) => item.value === 0) ? (
+              <div className="h-full flex items-center justify-center text-slate-500 dark:text-slate-400">Nenhum usuário encontrado para distribuição.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={roleData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.1} />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#141821', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', color: '#fff' }} cursor={{ fill: 'rgba(6,182,212,0.08)' }} />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                    {roleData.map((entry) => (
+                      <Cell key={entry.key} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </Card>
-        
-        <Card className="col-span-1 p-6 flex flex-col items-center justify-center text-center bg-gradient-to-br from-slate-900 to-slate-950 dark:from-[#181C26] dark:to-[#141821] border-slate-800 dark:border-white/5 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
-          <BrandImage type="icon" className="w-24 h-24 rounded-2xl mb-6 shadow-2xl shadow-cyan-500/20 border border-slate-700 dark:border-white/10 text-4xl" />
-          <h3 className="text-xl font-bold text-white mb-2">LoboCore System</h3>
-          <p className="text-slate-400 text-sm mb-6">Painel Administrativo Tecnológico de Alta Performance.</p>
-          <Badge variant="info">Versão 2.4.0-stable</Badge>
+
+        <Card className="col-span-1 p-6">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Resumo de status do sistema</h3>
+          <div className="space-y-4">
+            {dashboardLoading ? (
+              <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center"><Activity className="animate-spin mr-2" size={16} /> Carregando status...</div>
+            ) : (
+              systemStatus.map((item) => {
+                const total = item.active + item.inactive;
+                const activePercent = total > 0 ? Math.round((item.active / total) * 100) : 0;
+
+                return (
+                  <div key={item.label} className="p-4 rounded-lg border border-slate-200 dark:border-white/5 bg-slate-50/70 dark:bg-[#0E121B]/50">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{item.label}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{total} registros</p>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-[#181C26] overflow-hidden mb-2">
+                      <div className="h-full bg-cyan-500" style={{ width: `${activePercent}%` }} />
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <Badge variant="success">Ativos: {item.active}</Badge>
+                      <Badge variant="default">Inativos: {item.inactive}</Badge>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </Card>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="col-span-1 lg:col-span-2 p-6">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Últimos acessos</h3>
+          {dashboardLoading ? (
+            <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center"><Activity className="animate-spin mr-2" size={16} /> Carregando acessos...</div>
+          ) : lastLogins.length === 0 ? (
+            <div className="text-sm text-slate-500 dark:text-slate-400">Nenhum acesso registrado ainda. Assim que os usuários fizerem login, os eventos aparecerão aqui.</div>
+          ) : (
+            <div className="space-y-3">
+              {lastLogins.map((item) => (
+                <div key={item.id} className="p-4 rounded-lg border border-slate-200 dark:border-white/5 bg-white dark:bg-[#141821] flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-[#181C26] border border-slate-200 dark:border-white/5 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold text-xs uppercase shadow-sm">
+                      {item.name.substring(0, 2)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{item.name}</p>
+                      <div className="mt-1"><Badge variant={roleBadgeVariant(item.role)}>{usersRoleNames[item.role]}</Badge></div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDashboardDateTime(item.lastLoginAt)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="col-span-1 p-6">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">Cadastros recentes</h3>
+          {dashboardLoading ? (
+            <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center"><Activity className="animate-spin mr-2" size={16} /> Carregando cadastros...</div>
+          ) : recentUsers.length === 0 ? (
+            <div className="text-sm text-slate-500 dark:text-slate-400">Nenhum cadastro recente disponível.</div>
+          ) : (
+            <div className="space-y-3">
+              {recentUsers.map((item) => (
+                <div key={item.id} className="p-3 rounded-lg border border-slate-200 dark:border-white/5 bg-slate-50/70 dark:bg-[#0E121B]/50">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">{item.name}</p>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <Badge variant={roleBadgeVariant(item.role)}>{usersRoleNames[item.role]}</Badge>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{formatDashboardDate(item.createdAt)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Card className="col-span-1 p-6 flex flex-col items-center justify-center text-center bg-gradient-to-br from-slate-900 to-slate-950 dark:from-[#181C26] dark:to-[#141821] border-slate-800 dark:border-white/5 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
+        <BrandImage type="icon" className="w-24 h-24 rounded-2xl mb-6 shadow-2xl shadow-cyan-500/20 border border-slate-700 dark:border-white/10 text-4xl" />
+        <h3 className="text-xl font-bold text-white mb-2">LoboCore System</h3>
+        <p className="text-slate-400 text-sm mb-6">Painel Administrativo Tecnológico de Alta Performance.</p>
+        <Badge variant="info">Versão 2.4.0-stable</Badge>
+      </Card>
     </div>
   );
 };
@@ -540,21 +675,39 @@ const UsersView = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    const payload = { name: formData.name, email: formData.email, role: formData.role, active: formData.status === 'active' };
-    if (!editingUser && formData.password) payload.password = formData.password; 
+    const nextActive = formData.status === 'active';
 
     try {
       if (editingUser) {
-        await api.users.put(editingUser.id, payload);
+        await api.users.put(editingUser.id, {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+        });
+
+        if (editingUser.active !== nextActive) {
+          await api.users.patchStatus(editingUser.id, nextActive);
+        }
+
+        if (formData.password.trim()) {
+          await api.users.patchPassword(editingUser.id, formData.password.trim());
+        }
+
         showToast('Usuário atualizado com sucesso.', 'success');
       } else {
-        await api.users.post(payload);
+        await api.users.post({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role,
+          active: nextActive,
+        });
         showToast('Usuário criado com sucesso.', 'success');
       }
       setModalOpen(false);
-      loadUsers();
+      await loadUsers();
     } catch (e) {
-      showToast('Erro ao salvar usuário.', 'error');
+      showToast(e?.message || 'Erro ao salvar usuário.', 'error');
     } finally {
       setSaving(false);
     }
@@ -566,7 +719,7 @@ const UsersView = () => {
       showToast(`Usuário ${!currentStatus ? 'ativado' : 'inativado'}.`, 'success');
       setUsersList(usersList.map(u => u.id === id ? { ...u, active: !currentStatus } : u));
     } catch (e) {
-      showToast('Erro ao alterar status.', 'error');
+      showToast(e?.message || 'Erro ao alterar status.', 'error');
     }
   };
 
@@ -579,7 +732,7 @@ const UsersView = () => {
       setUsersList(usersList.filter(u => u.id !== itemToDelete.id));
       setDeleteModalOpen(false);
     } catch (e) {
-      showToast('Erro ao excluir usuário.', 'error');
+      showToast(e?.message || 'Erro ao excluir usuário.', 'error');
     } finally {
       setSaving(false);
     }
@@ -643,14 +796,15 @@ const UsersView = () => {
                 <th className="px-6 py-4 font-medium">Role</th>
                 <th className="px-6 py-4 font-medium">Status</th>
                 <th className="px-6 py-4 font-medium">Data de Criação</th>
+                <th className="px-6 py-4 font-medium">Último acesso</th>
                 <th className="px-6 py-4 font-medium text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-white/5">
               {loading ? (
-                <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-500"><Activity className="animate-spin mx-auto mb-3" size={24} /> Carregando usuários...</td></tr>
+                <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-500"><Activity className="animate-spin mx-auto mb-3" size={24} /> Carregando usuários...</td></tr>
               ) : filteredUsers.length === 0 ? (
-                <tr><td colSpan="5" className="px-6 py-12 text-center text-slate-500">Nenhum usuário encontrado.</td></tr>
+                <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-500">Nenhum usuário encontrado.</td></tr>
               ) : (
                 filteredUsers.map((u) => (
                   <tr key={u.id} className="bg-white dark:bg-[#141821] hover:bg-slate-50 dark:hover:bg-[#181C26] transition-colors group">
@@ -672,6 +826,7 @@ const UsersView = () => {
                       </button>
                     </td>
                     <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs"><div className="flex items-center gap-1.5"><Calendar size={13} /> {formatUserDate(u.createdAt)}</div></td>
+                    <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{formatLastLoginDateTime(u.lastLoginAt)}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2 items-center">
                         <button onClick={() => handleOpenModal(u)} title="Editar" className="flex items-center justify-center w-8 h-8 rounded-md bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-400 dark:hover:bg-cyan-900/40 transition-colors border border-transparent dark:border-cyan-500/20"><Edit size={16} /></button>
@@ -688,13 +843,18 @@ const UsersView = () => {
       
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingUser ? "Editar Usuário" : "Novo Usuário"}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input label="Nome Completo" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required placeholder="Ex: João da Silva" />
-          <Input label="E-mail" type="email" icon={Mail} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required placeholder="joao@lobocore.com" />
-          {!editingUser && (
-            <Input label="Senha Temporária" type={showPassword ? "text" : "password"} icon={Lock} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required placeholder="••••••••" 
-              rightElement={<button type="button" onClick={() => setShowPassword(!showPassword)} className="text-slate-400 hover:text-cyan-500 focus:outline-none transition-colors">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>}
-            />
-          )}
+          <Input label="Nome Completo" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required placeholder="Digite o nome completo do usuário" />
+          <Input label="E-mail" type="email" icon={Mail} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required placeholder="Digite o e-mail corporativo do usuário" />
+          <Input
+            label={editingUser ? 'Nova Senha (opcional)' : 'Senha Temporária'}
+            type={showPassword ? "text" : "password"}
+            icon={Lock}
+            value={formData.password}
+            onChange={e => setFormData({...formData, password: e.target.value})}
+            required={!editingUser}
+            placeholder={editingUser ? 'Deixe em branco para manter a senha atual' : 'Defina uma senha temporaria de acesso'}
+            rightElement={<button type="button" onClick={() => setShowPassword(!showPassword)} className="text-slate-400 hover:text-cyan-500 focus:outline-none transition-colors">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>}
+          />
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nível de Acesso<span className="text-rose-500 ml-1">*</span></label>
@@ -1240,6 +1400,7 @@ const ProfileView = () => {
                       <div><p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Nível de Acesso (Role)</p><Badge variant={fullUser.role === 'super_admin' ? 'purple' : fullUser.role === 'admin' ? 'info' : 'default'}>{profileRoleNames[fullUser.role]}</Badge></div>
                       <div><p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Status da Conta</p><Badge variant={fullUser.active ? 'success' : 'danger'}>{fullUser.active ? 'Ativo' : 'Inativo'}</Badge></div>
                       <div><p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Membro Desde</p><p className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2"><Calendar size={14} className="text-slate-400" /> {formatProfileDate(fullUser.createdAt)}</p></div>
+                      <div><p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Último acesso</p><p className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2"><Activity size={14} className="text-slate-400" /> {formatProfileLastLogin(fullUser.lastLoginAt)}</p></div>
                     </div>
                   </div>
                 </div>
@@ -1258,6 +1419,7 @@ const ProfileView = () => {
                 <div className="space-y-6">
                   <div><p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Nível de Acesso (Role)</p><Badge variant={fullUser.role === 'super_admin' ? 'purple' : fullUser.role === 'admin' ? 'info' : 'default'} className="text-sm px-3 py-1">{profileRoleNames[fullUser.role]}</Badge>{fullUser.role === 'super_admin' && <p className="text-xs text-slate-400 mt-2 flex items-center gap-1"><ShieldCheck size={14}/> Acesso irrestrito ao sistema.</p>}</div>
                   <div><p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Status da Conta</p><Badge variant={fullUser.active ? 'success' : 'danger'} className="text-sm px-3 py-1">{fullUser.active ? 'Ativo' : 'Inativo'}</Badge></div>
+                  <div><p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Último acesso</p><p className="text-slate-900 dark:text-white flex items-center gap-2"><Activity size={18} className="text-slate-400"/> {formatProfileLastLogin(fullUser.lastLoginAt)}</p></div>
                 </div>
               </div>
             )}

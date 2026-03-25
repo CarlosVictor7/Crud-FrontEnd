@@ -2,8 +2,12 @@ import axios, { type InternalAxiosRequestConfig } from 'axios';
 import type { ApiResponse } from '../types/api';
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, type RefreshResponse } from '../types/auth';
 
+const normalizeBaseUrl = (value: string) => value.replace(/\/+$/, '');
+const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').trim();
+const apiBaseUrl = normalizeBaseUrl(configuredApiBaseUrl);
+
 const http = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl,
   timeout: 15000
 });
 
@@ -39,7 +43,7 @@ const refreshAccessToken = async (): Promise<string | null> => {
   }
 
   try {
-    const response = await axios.post<ApiResponse<RefreshResponse>>('/api/auth/refresh', {
+    const response = await axios.post<ApiResponse<RefreshResponse>>(`${apiBaseUrl}/auth/refresh`, {
       refreshToken
     });
 

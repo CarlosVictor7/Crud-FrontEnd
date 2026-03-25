@@ -6,6 +6,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   active: boolean;
+  lastLoginAt?: string | null;
 }
 
 export interface LoginResponse {

@@ -6,6 +6,7 @@ export interface UsersTableRecord {
   email: string;
   role: UserRole;
   active: boolean;
+  lastLoginAt?: string | null;
   createdAt: string;
 }
 
@@ -68,4 +69,28 @@ export const formatUserDate = (dateString: string): string => {
     month: '2-digit',
     year: 'numeric'
   }).format(new Date(dateString));
+};
+
+export const formatLastLoginDateTime = (dateString?: string | null): string => {
+  if (!dateString) {
+    return 'Nunca acessou';
+  }
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return 'Nunca acessou';
+  }
+
+  const datePart = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+
+  const timePart = new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+
+  return `${datePart} às ${timePart}`;
 };

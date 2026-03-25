@@ -1,16 +1,15 @@
-import { usersMockService } from './users-mock-service';
-
 export interface ProfileUserLike {
   name: string;
   email: string;
   role: string;
   active?: boolean;
   createdAt?: string;
+  lastLoginAt?: string | null;
 }
 
 export const profileService = {
-  findProfileByEmail(email: string, fallback: ProfileUserLike) {
-    return usersMockService.findByEmail(email) || {
+  findProfileByEmail(_email: string, fallback: ProfileUserLike) {
+    return {
       ...fallback,
       active: fallback.active ?? true,
       createdAt: fallback.createdAt ?? new Date().toISOString(),
@@ -18,12 +17,14 @@ export const profileService = {
   },
 
   async updateProfileByEmail(
-    email: string,
+    _email: string,
     payload: {
       name: string;
       email: string;
     }
   ) {
-    return usersMockService.updateByEmail(email, payload);
+    return {
+      ...payload,
+    };
   },
 };
